@@ -1,96 +1,162 @@
-"use client";
+'use client'
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { SceneEditor } from "@/components/SceneEditor"; // Assuming you have this component
+import React, { useRef } from "react";
 
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
 import { Icons } from "@/components/icons";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SceneEditor } from "@/components/SceneEditor";
-import { VisualScripting } from "@/components/VisualScripting";
-import { AIModelGeneration } from "@/components/AIModelGeneration";
-import { AssetManagement } from "@/components/AssetManagement";
-import { SceneExport } from "@/components/SceneExport";
-import { useState } from "react";
 
-const navItems = [
-  {
-    title: "Scene Editor",
-    icon: Icons.home,
-    component: <SceneEditor />,
-  },
-  {
-    title: "Visual Scripting",
-    icon: Icons.workflow,
-    component: <VisualScripting />,
-  },
-  {
-    title: "AI Model Generation",
-    icon: Icons.shield,
-    component: <AIModelGeneration />,
-  },
-  {
-    title: "Asset Management",
-    icon: Icons.file,
-    component: <AssetManagement />,
-  },
-  {
-    title: "Scene Export",
-    icon: Icons.share,
-    component: <SceneExport />,
-  },
-];
+export default function Home(): JSX.Element {
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [currentHierarchy, setCurrentHierarchy] = React.useState<string[]>([]);
+  const [showAssetMenu, setShowAssetMenu] = React.useState(false);
+  const [selectedAsset, setSelectedAsset] = React.useState<string | null>(null);
+  const prevUrlRef = useRef<string | null>(null);
 
-export default function Home() {
-  const [activeComponent, setActiveComponent] = useState(navItems[0].component);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setSelectedFile(file);
+        const blobUrl = URL.createObjectURL(file);
+        setSelectedAsset(blobUrl);
+      };
+  
+      reader.readAsArrayBuffer(file);
+    }
+  };
+  
+
+    const handleAddObjectClick = () => {
+    setShowAssetMenu(!showAssetMenu);
+    };
+
+    const handleAssetSelect = (assetName: string) => {
+      setShowAssetMenu(false);
+      const newHierarchy = getGlbStructure(assetName);
+      setCurrentHierarchy(newHierarchy);
+      setSelectedAsset(assetName); // Update selectedAsset state
+    };
+  
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const renderAssetContent = () => {
+    if (selectedFile) {
+      return (
+        <div className="flex flex-col items-start p-2" draggable onDragStart={(e) => { if (e.dataTransfer) { e.dataTransfer.setData('text/plain', selectedFile.name); e.dataTransfer.effectAllowed = 'move' } }}>
+            <Icons.file className="w-12 h-12 text-gray-600 mb-2" />
+          <div
+            className="text-left text-white"
+          >
+            {selectedFile.name}
+          </div>
+        </div>
+      );
+    }
+    return <div className="text-gray-500">No assets added yet.</div>;
+  };
+
+  const getGlbStructure = (filename: string): string[] => {
+    // In a real app, parse the GLB and extract object hierarchy
+    return ["Root", "  - Child1", "  - Child2", "    - Grandchild1"];
+  };
+
 
   return (
-    <SidebarProvider>
-      <div className="flex h-screen">
-        <Sidebar>
-          <SidebarHeader>
-            <h2 className="font-semibold text-lg">Web3DEngine</h2>
-          </SidebarHeader>
-          <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel>Features</SidebarGroupLabel>
-              <SidebarMenu>
-                {navItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton onClick={() => setActiveComponent(item.component)}>
-                      {item.title}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroup>
-          </SidebarContent>
-          <SidebarFooter>
-            <p className="text-sm">
-              <SidebarTrigger className="w-full mt-2">Toggle Sidebar</SidebarTrigger>
-            </p>
-          </SidebarFooter>
-        </Sidebar>
-        <div className="flex-1 p-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {navItems.find((item) => item.component === activeComponent)?.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>{activeComponent}</CardContent>
-          </Card>
-        </div>
-      </div>
-    </SidebarProvider>
+    <div className="h-screen w-screen flex flex-col">
+      <PanelGroup direction="vertical" className="flex-grow h-full">
+          <Panel className="flex-grow overflow-hidden">
+            <PanelGroup direction="horizontal" className="h-full w-full">
+              <Panel
+                defaultSize={20}
+                minSize={10}
+                className="border-r border-gray-400 overflow-hidden"
+              >
+                <div className="p-2 font-bold border-b border-gray-400">
+                Hierarchy
+                </div>
+                <div className="p-2">
+                <button onClick={handleAddObjectClick} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-1 px-2 rounded">Add Object</button>
+                {currentHierarchy.length > 0 ? (
+                      <ul>
+                        {currentHierarchy.map((objectName, index) => (
+                          <li key={index}>{objectName}</li>
+                        ))}
+                      </ul>
+
+                  ) : (
+                    <div>No assets added to the scene yet. Select an asset using 'Add Object'.</div>
+                  )}
+
+                   {/* Asset Menu (conditionally rendered) */}
+                  {showAssetMenu && selectedFile === null && (
+                        <ul className="bg-gray-200 border border-gray-400 p-2 rounded mt-2">
+                              <li className="hover:bg-gray-300 p-1">No assets in Asset Manager. Upload in Assets panel first.</li>
+                          </ul>
+                      )}
+                  
+                  
+
+                  {showAssetMenu && selectedFile && (
+                    <ul className="bg-gray-200 border border-gray-400 p-2 rounded mt-2"> 
+                      <li key={selectedFile.name} className="hover:bg-gray-300 p-1"><button onClick={() => handleAssetSelect(selectedFile.name)}>{selectedFile.name}</button></li>
+                      
+                    </ul>
+                  )}                
+                </div>
+              </Panel>
+              <PanelResizeHandle className="bg-gray-400" />
+              <Panel className="flex-grow overflow-hidden">
+                <SceneEditor selectedAsset={selectedAsset} />
+                </Panel>
+                
+               
+                
+                 
+                
+              
+                
+              
+
+              
+            <PanelResizeHandle className="bg-gray-400" />
+            <Panel defaultSize={20}
+                minSize={10}
+                className="border-l border-gray-400"
+              >
+                <div className="p-2 font-bold border-b border-gray-400">
+                  Properties
+                </div>
+                <div className="p-2">Properties content here</div>
+              </Panel>
+            </PanelGroup>
+          </Panel>
+
+          <PanelResizeHandle className="bg-gray-400" />        
+          <Panel
+            minSize={5}
+            defaultSize={20}
+            className="border-t border-gray-400 overflow-hidden relative"
+          >
+          <div className="p-2 font-bold border-b border-gray-400 flex items-center justify-between">
+            Assets
+            <button
+              className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-1 px-2 rounded"
+              onClick={() => {
+               if (fileInputRef.current) {
+                  fileInputRef.current.click();
+                }}
+              }
+            >
+              <input type="file" accept=".gltf,.glb" hidden ref={fileInputRef} onChange={handleFileChange} />
+              +
+            </button>
+          </div>          
+
+            <div className="p-2">{renderAssetContent()}</div>
+          </Panel>
+        </PanelGroup>
+         
+    </div>
   );
 }
