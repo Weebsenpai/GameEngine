@@ -1,41 +1,47 @@
-'use client'
+"use client";
+
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { SceneEditor } from "@/components/SceneEditor"; // Assuming you have this component
 import React, { useRef } from "react";
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 import { Icons } from "@/components/icons";
 
 export default function Home(): JSX.Element {
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [currentHierarchy, setCurrentHierarchy] = React.useState<string[]>([]);
+  const [objectProperties, setObjectProperties] = React.useState<any[]>([]);
   const [showAssetMenu, setShowAssetMenu] = React.useState(false);
-  const [selectedAsset, setSelectedAsset] = React.useState<string | null>(null);
-  const prevUrlRef = useRef<string | null>(null);
+  const [selectedAsset, setSelectedAsset] = React.useState<File | null>(null);
+  const [selectedFileBlobURL, setSelectedFileBlobURL] = React.useState<string | null>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        setSelectedFile(file);
-        const blobUrl = URL.createObjectURL(file);
-        setSelectedAsset(blobUrl);
-      };
-  
+          setSelectedFile(file);
+        };
       reader.readAsArrayBuffer(file);
     }
-  };
-  
+    };
+
+    const handlePropertiesUpdate = (properties: any[]) => {
+      setObjectProperties(properties);
+    };
 
     const handleAddObjectClick = () => {
     setShowAssetMenu(!showAssetMenu);
     };
 
-    const handleAssetSelect = (assetName: string) => {
+    const handleAssetSelect = async (assetName: File) => {
       setShowAssetMenu(false);
-      const newHierarchy = getGlbStructure(assetName);
+      const newHierarchy = await getGlbStructure(assetName);
       setCurrentHierarchy(newHierarchy);
-      setSelectedAsset(assetName); // Update selectedAsset state
+      const blobURL = URL.createObjectURL(assetName);
+      setSelectedFileBlobURL(blobURL)
+      setSelectedAsset(assetName);
     };
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -56,10 +62,31 @@ export default function Home(): JSX.Element {
     return <div className="text-gray-500">No assets added yet.</div>;
   };
 
-  const getGlbStructure = (filename: string): string[] => {
-    // In a real app, parse the GLB and extract object hierarchy
-    return ["Root", "  - Child1", "  - Child2", "    - Grandchild1"];
+  const getGlbStructure = async (file: File): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const loader = new GLTFLoader();
+  
+      const url = URL.createObjectURL(file);
+  
+      loader.load(
+        url,
+        (gltf) => {
+          const structure: string[] = [];
+  
+          const traverseNode = (node: THREE.Object3D, depth = 0) => {
+            structure.push(`${"  ".repeat(depth)}- ${node.name || node.type}`);
+            node.children.forEach((child) => traverseNode(child, depth + 1));
+          };
+  
+          traverseNode(gltf.scene);
+          resolve(structure);
+        },
+        undefined,
+        (error) => reject(error)
+      );
+    });
   };
+  
 
 
   return (
@@ -99,7 +126,7 @@ export default function Home(): JSX.Element {
 
                   {showAssetMenu && selectedFile && (
                     <ul className="bg-gray-200 border border-gray-400 p-2 rounded mt-2"> 
-                      <li key={selectedFile.name} className="hover:bg-gray-300 p-1"><button onClick={() => handleAssetSelect(selectedFile.name)}>{selectedFile.name}</button></li>
+                      <li key={selectedFile.name} className="hover:bg-gray-300 p-1"><button onClick={() => handleAssetSelect(selectedFile)}>{selectedFile.name}</button></li>
                       
                     </ul>
                   )}                
@@ -107,7 +134,7 @@ export default function Home(): JSX.Element {
               </Panel>
               <PanelResizeHandle className="bg-gray-400" />
               <Panel className="flex-grow overflow-hidden">
-                <SceneEditor selectedAsset={selectedAsset} />
+                <SceneEditor selectedAsset={selectedFileBlobURL}  onPropertiesUpdate={handlePropertiesUpdate} />
                 </Panel>
                 
                
@@ -127,7 +154,16 @@ export default function Home(): JSX.Element {
                 <div className="p-2 font-bold border-b border-gray-400">
                   Properties
                 </div>
-                <div className="p-2">Properties content here</div>
+                <div style={{ marginTop: '20px' }}>
+                <h3>Object Properties</h3>
+                <ul>
+                  {objectProperties.map((prop, index) => (
+                    <li key={index}>
+                      <strong>{prop.key}:</strong> {prop.value}
+                    </li>
+                  ))}
+                </ul>
+              </div>
               </Panel>
             </PanelGroup>
           </Panel>
@@ -158,5 +194,6 @@ export default function Home(): JSX.Element {
         </PanelGroup>
          
     </div>
+   
   );
 }
